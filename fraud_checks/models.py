@@ -24,7 +24,7 @@ class FraudCheck(models.Model):
         choices=Decision.choices
     )
 
-    reason = models.JSONField()
+    reasons = models.JSONField()
 
     checked_at = models.DateTimeField(
         auto_now_add=True
