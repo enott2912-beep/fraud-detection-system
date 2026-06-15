@@ -1,5 +1,6 @@
 from transactions.models import Transaction
 from accounts.models import Account
+from fraud_checks.models import FraudCheck
 from django.utils import timezone
 from datetime import timedelta
 
@@ -37,3 +38,17 @@ def calculate_risk(transaction):
         "decision": decision,
         "reasons": reasons,
     }
+
+
+def run_fraud_check(transaction):
+
+    result = calculate_risk(transaction)
+
+    fraud_check = FraudCheck.objects.create(
+        transaction=transaction,
+        risk_score=result["risk_score"],
+        decision=result["decision"],
+        reasons=result["reasons"],
+    )
+
+    return fraud_check
