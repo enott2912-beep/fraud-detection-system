@@ -51,4 +51,16 @@ def run_fraud_check(transaction):
         reasons=result["reasons"],
     )
 
+    status_map = {
+        "APPROVED": Transaction.Status.APPROVED,
+        "BLOCKED": Transaction.Status.BLOCKED,
+        "REVIEW": Transaction.Status.PENDING,
+    }
+
+    new_status = status_map.get(result["decision"])
+
+    if new_status and new_status != transaction.status:
+        transaction.status = new_status
+        transaction.save(update_fields=["status"])
+
     return fraud_check

@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     'accounts',
     'transactions',
     'fraud_checks',
+    'rest_framework',
 ]
 
 MIDDLEWARE = [
