@@ -24,5 +24,10 @@ class Account(models.Model):
         auto_now_add=True
     )
 
+    is_blocked = models.BooleanField(
+        default=False
+    )
+
+
     def __str__(self):
         return self.account_number

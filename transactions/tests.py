@@ -59,6 +59,9 @@ class TransactionAPITests(APITestCase):
 
     def test_create_transaction_blocked(self):
         """Test transaction resulting in BLOCKED status (risk >= 60)."""
+        self.account1.balance = 200000.00
+        self.account1.save()
+
         # Sender account is new (< 7 days) -> +20 risk score
         # Amount > 100,000 -> +40 risk score
         # Total risk = 60 -> BLOCKED
@@ -84,8 +87,12 @@ class TransactionAPITests(APITestCase):
         from django.utils import timezone
         from datetime import timedelta
 
+        self.account1.balance = 200000.00
+        self.account1.save()
+
         # Set sender account age to 10 days (so no new_account risk score of +20)
         Account.objects.filter(id=self.account1.id).update(created_at=timezone.now() - timedelta(days=10))
+        self.account1.refresh_from_db()
 
         # Amount > 100,000 -> +40 risk score
         # Total risk = 40 -> REVIEW -> Transaction status is PENDING
@@ -202,4 +209,141 @@ class TransactionAPITests(APITestCase):
         # POST is not allowed
         response = self.client.post(url_list, {"risk_score": 10}, format="json")
         self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    def test_insufficient_balance(self):
+        """Test transaction blocked when sender has insufficient balance."""
+        self.account1.balance = 50.00
+        self.account1.save()
+
+        url = "/api/transactions/"
+        data = {
+            "sender_account": self.account1.id,
+            "receiver_account": self.account2.id,
+            "amount": "100.00"
+        }
+        response = self.client.post(url, data, format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        # Transaction should be BLOCKED due to insufficient balance
+        self.assertEqual(response.data["status"], "BLOCKED")
+        self.assertIn("insufficient_balance", response.data["fraud_check"]["reasons"])
+
+        # Check balances were not modified
+        self.account1.refresh_from_db()
+        self.account2.refresh_from_db()
+        self.assertEqual(self.account1.balance, 50.00)
+        self.assertEqual(self.account2.balance, 500.00)
+
+    def test_balance_transfer_success(self):
+        """Test that a successful APPROVED transaction transfers balances correctly."""
+        self.account1.balance = 1000.00
+        self.account1.save()
+
+        url = "/api/transactions/"
+        data = {
+            "sender_account": self.account1.id,
+            "receiver_account": self.account2.id,
+            "amount": "200.00"
+        }
+        response = self.client.post(url, data, format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        self.assertEqual(response.data["status"], "APPROVED")
+
+        # Verify balances updated in database
+        self.account1.refresh_from_db()
+        self.account2.refresh_from_db()
+        self.assertEqual(self.account1.balance, 800.00)
+        self.assertEqual(self.account2.balance, 700.00)
+
+    def test_daily_spent_limit_exceeded(self):
+        """Test daily spent limit check (exceeding DAILY_LIMIT = 200000.00)."""
+        from django.utils import timezone
+        from datetime import timedelta
+
+        # Make account old to avoid new_account risk (+20)
+        Account.objects.filter(id=self.account1.id).update(created_at=timezone.now() - timedelta(days=10))
+        self.account1.refresh_from_db()
+
+        # Increase balance to allow large transactions
+        self.account1.balance = 300000.00
+        self.account1.save()
+
+        # Create previous transactions summing to 180,000.00
+        # They must be in status APPROVED to be included in daily spent sum
+        Transaction.objects.create(
+            sender_account=self.account1,
+            receiver_account=self.account2,
+            amount=180000.00,
+            status=Transaction.Status.APPROVED
+        )
+
+        url = "/api/transactions/"
+        data = {
+            "sender_account": self.account1.id,
+            "receiver_account": self.account2.id,
+            "amount": "30000.00"  # 180000 + 30000 = 210000 > 200000 limit
+        }
+        response = self.client.post(url, data, format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        # Should be BLOCKED due to daily spent limit exceeded
+        self.assertEqual(response.data["status"], "BLOCKED")
+        self.assertIn("limit_exceeded", response.data["fraud_check"]["reasons"])
+
+        # Balance should not be deducted for blocked transaction
+        self.account1.refresh_from_db()
+        self.assertEqual(self.account1.balance, 300000.00)
+
+    def test_account_auto_blocking_after_repeated_blocks(self):
+        """Test that account is automatically blocked after 3 BLOCKED transactions."""
+        self.account1.balance = 10.00
+        self.account1.save()
+
+        url = "/api/transactions/"
+        data = {
+            "sender_account": self.account1.id,
+            "receiver_account": self.account2.id,
+            "amount": "50.00"  # gets BLOCKED due to insufficient balance
+        }
+
+        # 1st blocked transaction
+        response = self.client.post(url, data, format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["status"], "BLOCKED")
+        self.account1.refresh_from_db()
+        self.assertFalse(self.account1.is_blocked)
+
+        # 2nd blocked transaction
+        response = self.client.post(url, data, format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["status"], "BLOCKED")
+        self.account1.refresh_from_db()
+        self.assertFalse(self.account1.is_blocked)
+
+        # 3rd blocked transaction
+        response = self.client.post(url, data, format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["status"], "BLOCKED")
+        self.account1.refresh_from_db()
+        self.assertTrue(self.account1.is_blocked)  # now blocked!
+
+    def test_blocked_account_rejected_immediately(self):
+        """Test that a transaction from an already blocked account is rejected immediately."""
+        self.account1.is_blocked = True
+        self.account1.save()
+
+        url = "/api/transactions/"
+        data = {
+            "sender_account": self.account1.id,
+            "receiver_account": self.account2.id,
+            "amount": "5.00"
+        }
+        response = self.client.post(url, data, format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        self.assertEqual(response.data["status"], "BLOCKED")
+        self.assertIn("account_blocked", response.data["fraud_check"]["reasons"])
+        self.assertEqual(response.data["fraud_check"]["risk_score"], 120)  # 100 blocked + 20 new_account
+
 
