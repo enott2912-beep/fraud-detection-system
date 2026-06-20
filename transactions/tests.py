@@ -346,4 +346,79 @@ class TransactionAPITests(APITestCase):
         self.assertIn("account_blocked", response.data["fraud_check"]["reasons"])
         self.assertEqual(response.data["fraud_check"]["risk_score"], 120)  # 100 blocked + 20 new_account
 
+    def test_analytics_endpoint(self):
+        """Test the custom analytics endpoint aggregates data correctly."""
+        from django.utils import timezone
+        from datetime import timedelta
+        
+        # Clear objects created in setUp if any to have exact predictable counts
+        Transaction.objects.all().delete()
+        FraudCheck.objects.all().delete()
+        
+        # Set account1 to old to trigger REVIEW (+40 risk) on high amount, and give it high balance
+        Account.objects.filter(id=self.account1.id).update(created_at=timezone.now() - timedelta(days=10))
+        self.account1.refresh_from_db()
+        self.account1.balance = 500000.00
+        self.account1.save()
+
+        # Set account2 to old, give it high balance
+        Account.objects.filter(id=self.account2.id).update(created_at=timezone.now() - timedelta(days=10))
+        self.account2.refresh_from_db()
+        self.account2.balance = 500000.00
+        self.account2.save()
+
+        url_transactions = "/api/transactions/"
+
+        # 1. Transaction 1: account1 -> account2, amount 100.00 (APPROVED, risk_score = 0)
+        response = self.client.post(url_transactions, {
+            "sender_account": self.account1.id,
+            "receiver_account": self.account2.id,
+            "amount": "100.00"
+        }, format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        # 2. Transaction 2: account1 -> account2, amount 150000.00 (REVIEW, risk_score = 40)
+        response = self.client.post(url_transactions, {
+            "sender_account": self.account1.id,
+            "receiver_account": self.account2.id,
+            "amount": "150000.00"
+        }, format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        # 3. Transaction 3: account2 -> account1, amount 150000.00 on new account age
+        # Let's temporarily make account2 a new account
+        Account.objects.filter(id=self.account2.id).update(created_at=timezone.now())
+        self.account2.refresh_from_db()
+        # Amount 150000.00 + new account -> risk_score = 60 (BLOCKED)
+        response = self.client.post(url_transactions, {
+            "sender_account": self.account2.id,
+            "receiver_account": self.account1.id,
+            "amount": "150000.00"
+        }, format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        # Total checks:
+        # Check 1: risk 0, APPROVED
+        # Check 2: risk 40, REVIEW
+        # Check 3: risk 60, BLOCKED
+        # Average risk score: (0 + 40 + 60) / 3 = 33.33
+        # Blocked count: 1
+        # Bad transactions count:
+        # account1 has 1 (Transaction 2 is REVIEW)
+        # account2 has 1 (Transaction 3 is BLOCKED)
+
+        url_analytics = "/api/fraud-checks/analytics/"
+        response = self.client.get(url_analytics)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.assertEqual(response.data["blocked_transactions_count"], 1)
+        self.assertEqual(response.data["average_risk_score"], 33.33)
+        self.assertEqual(len(response.data["top_flagged_accounts"]), 2)
+
+        # Verify top flagged accounts list
+        flagged_ids = [acc["id"] for acc in response.data["top_flagged_accounts"]]
+        self.assertIn(self.account1.id, flagged_ids)
+        self.assertIn(self.account2.id, flagged_ids)
+
+
 
