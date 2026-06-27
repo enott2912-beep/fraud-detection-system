@@ -28,6 +28,9 @@ class Account(models.Model):
         default=False
     )
 
+    is_synthetic = models.BooleanField(
+        default=False
+    )
 
     def __str__(self):
         return self.account_number
