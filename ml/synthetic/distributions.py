@@ -10,12 +10,12 @@ def generate_balance(n, rng):
 
 
 def generate_normal_amount(n, rng):
-    amounts = rng.lognormal(mean=8.7, sigma=0.5, size=n)
+    amounts = rng.lognormal(mean=9, sigma=0.65, size=n)
     return np.round(amounts, 2)
 
 
 def generate_fraud_amount(n, rng):
-    amounts = rng.lognormal(mean=11.0, sigma=0.6, size=n)
+    amounts = rng.lognormal(mean=11.0, sigma=0.7, size=n)
     return np.round(amounts, 2)
 
 

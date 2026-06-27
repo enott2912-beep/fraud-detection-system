@@ -4,3 +4,7 @@ psycopg>=3.3.4
 faker
 numpy
 pandas
+matplotlib
+seaborn
+jupyter
+ipykernel
