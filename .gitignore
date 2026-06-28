@@ -6,3 +6,4 @@ db.sqlite3
 AGENTS.md
 ml/datasets/*.csv
 .ipynb_checkpoints/
+ml/models/*.pkl
