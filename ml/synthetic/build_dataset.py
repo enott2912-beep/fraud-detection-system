@@ -72,6 +72,11 @@ def assign_transaction_timestamps(transactions_df, accounts_df, rng, reference_d
             rng.integers(0, max_offsets.to_numpy() + 1),
             index=normal_df.index,
         )
+
+        dormant_mask = normal_df["fraud_pattern"] == "dormant_reactivation_fraud"
+        if dormant_mask.any():
+            day_offsets.loc[dormant_mask] = max_offsets.loc[dormant_mask]
+
         base_dates = sender_days + pd.to_timedelta(day_offsets, unit="D")
 
         minutes = rng.integers(0, 60, size=len(normal_df))
@@ -104,19 +109,40 @@ def assign_transaction_timestamps(transactions_df, accounts_df, rng, reference_d
             max_offset = int((reference_day - burst_day_start).days)
             day_offset = int(rng.integers(0, max_offset + 1)) if max_offset > 0 else 0
             base_day = burst_day_start + pd.to_timedelta(day_offset, unit="D")
-            base_hour = int(burst_df["transaction_hour"].iloc[0])
-            base_timestamp = base_day + pd.to_timedelta(base_hour, unit="h")
 
-            minute_offsets = rng.integers(0, 60, size=len(burst_df))
-            second_offsets = rng.integers(0, 60, size=len(burst_df))
-            burst_timestamps = pd.Series(
-                (
-                    base_timestamp
-                    + pd.to_timedelta(minute_offsets, unit="m")
-                    + pd.to_timedelta(second_offsets, unit="s")
-                ),
-                index=burst_df.index,
+            is_structuring = (
+                "fraud_pattern" in burst_df.columns
+                and burst_df["fraud_pattern"].iloc[0] == "structuring_fraud"
             )
+
+            if is_structuring:
+                hour_values = np.array([
+                    min(8 + i * 2, 22) for i in range(len(burst_df))
+                ])
+                minute_offsets = rng.integers(0, 60, size=len(burst_df))
+                second_offsets = rng.integers(0, 60, size=len(burst_df))
+                burst_timestamps = pd.Series(
+                    (
+                        base_day
+                        + pd.to_timedelta(hour_values, unit="h")
+                        + pd.to_timedelta(minute_offsets, unit="m")
+                        + pd.to_timedelta(second_offsets, unit="s")
+                    ),
+                    index=burst_df.index,
+                )
+            else:
+                base_hour = int(burst_df["transaction_hour"].iloc[0])
+                base_timestamp = base_day + pd.to_timedelta(base_hour, unit="h")
+                minute_offsets = rng.integers(0, 60, size=len(burst_df))
+                second_offsets = rng.integers(0, 60, size=len(burst_df))
+                burst_timestamps = pd.Series(
+                    (
+                        base_timestamp
+                        + pd.to_timedelta(minute_offsets, unit="m")
+                        + pd.to_timedelta(second_offsets, unit="s")
+                    ),
+                    index=burst_df.index,
+                )
 
             needs_bump = burst_timestamps <= burst_df["sender_created_at"]
             if needs_bump.any():
@@ -170,6 +196,59 @@ def compute_tx_last_hour(transactions_df):
     ].sort_index()
 
 
+def compute_receiver_tx_count_24h(transactions_df):
+    ordered = transactions_df.reset_index(names="_orig_index").sort_values(
+        ["receiver_account_id", "created_at", "_orig_index"]
+    )
+    rolling_counts = (
+        ordered.groupby("receiver_account_id", sort=False)
+        .rolling("24h", on="created_at", closed="left")["amount"]
+        .count()
+        .reset_index(level=0, drop=True)
+    )
+    ordered["receiver_tx_count_24h"] = rolling_counts.fillna(0).to_numpy(dtype="int64")
+    return ordered.sort_values("_orig_index").set_index("_orig_index")[
+        "receiver_tx_count_24h"
+    ].sort_index()
+
+
+def compute_sender_daily_amount_sum(transactions_df):
+    ordered = transactions_df.reset_index(names="_orig_index").sort_values(
+        ["sender_account_id", "created_at", "_orig_index"]
+    )
+    rolling_sum = (
+        ordered.groupby("sender_account_id", sort=False)
+        .rolling("1d", on="created_at", closed="left")["amount"]
+        .sum()
+        .reset_index(level=0, drop=True)
+    )
+    ordered["sender_daily_amount_sum"] = rolling_sum.fillna(0).to_numpy(dtype="float64")
+    return ordered.sort_values("_orig_index").set_index("_orig_index")[
+        "sender_daily_amount_sum"
+    ].sort_index()
+
+
+def compute_amount_to_balance_ratio(transactions_df, accounts_df):
+    balance_map = accounts_df.set_index("account_id")["balance"]
+    sender_balances = transactions_df["sender_account_id"].map(balance_map)
+    return (transactions_df["amount"] / sender_balances).round(4)
+
+
+def compute_days_since_last_tx(transactions_df):
+    ordered = transactions_df.reset_index(names="_orig_index").sort_values(
+        ["sender_account_id", "created_at", "_orig_index"]
+    )
+    prev_timestamps = (
+        ordered.groupby("sender_account_id", sort=False)["created_at"]
+        .shift(1)
+    )
+    days_diff = (ordered["created_at"] - prev_timestamps).dt.total_seconds() / 86400
+    ordered["days_since_last_tx"] = days_diff
+    return ordered.sort_values("_orig_index").set_index("_orig_index")[
+        "days_since_last_tx"
+    ].sort_index()
+
+
 def build_dataset():
 
     rng = np.random.default_rng(config.SEED)
@@ -194,6 +273,29 @@ def build_dataset():
         transactions_df, accounts_df
     )
     transactions_df["tx_last_hour"] = compute_tx_last_hour(transactions_df)
+
+    transactions_df["receiver_tx_count_24h"] = compute_receiver_tx_count_24h(
+        transactions_df
+    )
+    transactions_df["sender_daily_amount_sum"] = compute_sender_daily_amount_sum(
+        transactions_df
+    )
+    transactions_df["amount_to_balance_ratio"] = compute_amount_to_balance_ratio(
+        transactions_df, accounts_df
+    )
+    transactions_df["days_since_last_tx"] = compute_days_since_last_tx(
+        transactions_df
+    )
+    transactions_df["days_since_last_tx"] = (
+        transactions_df["days_since_last_tx"].fillna(
+            transactions_df["account_age_days"]
+        )
+    )
+
+    dormant_mask = transactions_df["fraud_pattern"] == "dormant_reactivation_fraud"
+    transactions_df.loc[dormant_mask, "days_since_last_tx"] = (
+        transactions_df.loc[dormant_mask, "account_age_days"]
+    )
 
     return accounts_df, transactions_df
 

@@ -10,10 +10,14 @@ import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import classification_report, roc_auc_score, confusion_matrix
 
-DATASET_PATH = Path(__file__).resolve().parent / "datasets" / "synthetic_v1.csv"
-MODEL_PATH = Path(__file__).resolve().parent / "models" / "fraud_model_v1.pkl"
+DATASET_PATH = Path(__file__).resolve().parent / "datasets" / "synthetic_v2.csv"
+MODEL_PATH = Path(__file__).resolve().parent / "models" / "fraud_model_v2.pkl"
 
-FEATURE_COLS = ["amount", "account_age_days", "tx_last_hour", "transaction_hour"]
+FEATURE_COLS = [
+    "amount", "account_age_days", "tx_last_hour", "transaction_hour",
+    "receiver_tx_count_24h", "sender_daily_amount_sum",
+    "amount_to_balance_ratio", "days_since_last_tx",
+]
 LABEL_COL = "is_fraud"
 
 

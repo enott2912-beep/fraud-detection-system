@@ -12,6 +12,10 @@ FRAUD_RATIO = 0.03
 ENABLED_FRAUD_PATTERNS = [
     "new_account_fraud",
     "velocity_fraud",
+    "mule_fraud",
+    "structuring_fraud",
+    "balance_drain_fraud",
+    "dormant_reactivation_fraud",
 ]
 
 ACCOUNT_CREATED_DAYS_RANGE = (1, 730)
