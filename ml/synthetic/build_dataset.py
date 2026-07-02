@@ -45,10 +45,22 @@ def assign_transaction_timestamps(transactions_df, accounts_df, rng, reference_d
     accounts_with_created["sender_created_at"] = offsets_to_datetime(
         accounts_with_created["created_offset_days"], reference_date
     )
+    accounts_with_created["receiver_created_at"] = accounts_with_created[
+        "sender_created_at"
+    ]
 
     transactions_df = transactions_df.merge(
         accounts_with_created[["account_id", "sender_created_at"]],
         left_on="sender_account_id",
+        right_on="account_id",
+        how="left",
+        validate="many_to_one",
+    )
+    transactions_df = transactions_df.drop(columns=["account_id"])
+
+    transactions_df = transactions_df.merge(
+        accounts_with_created[["account_id", "receiver_created_at"]],
+        left_on="receiver_account_id",
         right_on="account_id",
         how="left",
         validate="many_to_one",
@@ -77,14 +89,12 @@ def assign_transaction_timestamps(transactions_df, accounts_df, rng, reference_d
         if dormant_mask.any():
             day_offsets.loc[dormant_mask] = np.maximum(
                 day_offsets.loc[dormant_mask].to_numpy(),
-                np.full(dormant_mask.sum(), 60),
+                np.full(dormant_mask.sum(), 14),
             )
 
         new_account_mask = normal_df["fraud_pattern"] == "new_account_fraud"
         if new_account_mask.any():
-            clamped_max = np.minimum(
-                max_offsets.loc[new_account_mask].to_numpy() + 1, 8
-            )
+            clamped_max = max_offsets.loc[new_account_mask].to_numpy() + 1
             day_offsets.loc[new_account_mask] = rng.integers(
                 0, clamped_max
             )
@@ -116,11 +126,22 @@ def assign_transaction_timestamps(transactions_df, accounts_df, rng, reference_d
         burst_groups = transactions_df.loc[burst_mask].groupby("burst_id", sort=False)
         for _, burst_df in burst_groups:
             burst_df = burst_df.copy()
-            sender_created_at = burst_df["sender_created_at"].iloc[0]
-            burst_day_start = sender_created_at.normalize()
+            is_mule = (
+                "fraud_pattern" in burst_df.columns
+                and burst_df["fraud_pattern"].iloc[0] == "mule_fraud"
+            )
+            if is_mule:
+                anchor_ts = burst_df["receiver_created_at"].iloc[0]
+            else:
+                anchor_ts = burst_df["sender_created_at"].iloc[0]
+            burst_day_start = anchor_ts.normalize()
             max_offset = int((reference_day - burst_day_start).days)
             day_offset = int(rng.integers(0, max_offset + 1)) if max_offset > 0 else 0
             base_day = burst_day_start + pd.to_timedelta(day_offset, unit="D")
+
+            days_to_ref = (reference_day - base_day).days
+            max_jitter = min(2, max(0, days_to_ref))
+            day_jitter = rng.integers(0, max_jitter + 1, size=len(burst_df))
 
             is_structuring = (
                 "fraud_pattern" in burst_df.columns
@@ -136,6 +157,7 @@ def assign_transaction_timestamps(transactions_df, accounts_df, rng, reference_d
                 burst_timestamps = pd.Series(
                     (
                         base_day
+                        + pd.to_timedelta(day_jitter, unit="D")
                         + pd.to_timedelta(hour_values, unit="h")
                         + pd.to_timedelta(minute_offsets, unit="m")
                         + pd.to_timedelta(second_offsets, unit="s")
@@ -150,23 +172,28 @@ def assign_transaction_timestamps(transactions_df, accounts_df, rng, reference_d
                 burst_timestamps = pd.Series(
                     (
                         base_timestamp
+                        + pd.to_timedelta(day_jitter, unit="D")
                         + pd.to_timedelta(minute_offsets, unit="m")
                         + pd.to_timedelta(second_offsets, unit="s")
                     ),
                     index=burst_df.index,
                 )
 
-            needs_bump = burst_timestamps <= burst_df["sender_created_at"]
+            if is_mule:
+                bump_ref = burst_df["receiver_created_at"]
+            else:
+                bump_ref = burst_df["sender_created_at"]
+            needs_bump = burst_timestamps <= bump_ref
             if needs_bump.any():
                 burst_timestamps.loc[needs_bump] = (
-                    burst_df.loc[needs_bump, "sender_created_at"]
+                    bump_ref.loc[needs_bump]
                     + pd.to_timedelta(1, unit="s")
                 )
 
             transaction_datetimes.loc[burst_df.index] = burst_timestamps
 
     transactions_df["created_at"] = transaction_datetimes
-    return transactions_df.drop(columns=["sender_created_at"])
+    return transactions_df.drop(columns=["sender_created_at", "receiver_created_at"])
 
 
 def compute_account_age_days(transactions_df, accounts_df):
@@ -186,7 +213,8 @@ def compute_account_age_days(transactions_df, accounts_df):
         how="left",
         validate="many_to_one",
     ).drop(columns=["account_id"])
-    return (merged["created_at"] - merged["sender_created_at"]).dt.days
+    age = (merged["created_at"] - merged["sender_created_at"]).dt.days
+    return age.clip(lower=0)
 
 
 def compute_tx_last_hour(transactions_df):
@@ -301,7 +329,7 @@ def build_dataset():
     transactions_df["days_since_last_tx"] = (
         transactions_df["days_since_last_tx"].fillna(
             transactions_df["account_age_days"]
-        )
+        ).clip(lower=0)
     )
 
     return accounts_df, transactions_df

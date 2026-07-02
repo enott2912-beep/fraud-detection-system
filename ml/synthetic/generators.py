@@ -183,7 +183,7 @@ def balance_drain_fraud(n, accounts_df, rng):
     })
 
 
-def dormant_reactivation_fraud(n, accounts_df, rng, min_age_days=200):
+def dormant_reactivation_fraud(n, accounts_df, rng, min_age_days=30):
     account_ids = accounts_df["account_id"].to_numpy()
     ages = accounts_df["created_offset_days"].to_numpy().astype(float)
     old_mask = ages >= min_age_days

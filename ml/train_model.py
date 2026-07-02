@@ -9,10 +9,10 @@ from pathlib import Path
 import joblib
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import classification_report, roc_auc_score, confusion_matrix
+from sklearn.metrics import classification_report, roc_auc_score, confusion_matrix, recall_score
 
-DATASET_PATH = Path(__file__).resolve().parent / "datasets" / "synthetic_v4.csv"
-MODEL_PATH = Path(__file__).resolve().parent / "models" / "fraud_model_v4.pkl"
+DATASET_PATH = Path(__file__).resolve().parent / "datasets" / "synthetic_v5.csv"
+MODEL_PATH = Path(__file__).resolve().parent / "models" / "fraud_model_v5.pkl"
 
 FEATURE_COLS = [
     "amount", "account_age_days", "tx_last_hour", "transaction_hour",
@@ -21,7 +21,7 @@ FEATURE_COLS = [
 ]
 LABEL_COL = "is_fraud"
 
-BEST_THRESHOLD = 0.64
+BEST_THRESHOLD = 0.59
 
 BEST_PARAMS = {
     "n_estimators": 200,
@@ -54,7 +54,7 @@ def train_model(X_train, y_train):
     return model
 
 
-def evaluate_model(model, X_test, y_test):
+def evaluate_model(model, X_test, y_test, df_test):
     y_proba = model.predict_proba(X_test)[:, 1]
     y_pred = (y_proba >= BEST_THRESHOLD).astype(int)
 
@@ -69,6 +69,19 @@ def evaluate_model(model, X_test, y_test):
 
     print()
     print("ROC-AUC:", round(roc_auc_score(y_test, y_proba), 4))
+
+    print()
+    print("=== Per-pattern recall ===")
+    test_local = df_test.copy()
+    test_local["pred"] = y_pred
+    h = f"{'Pattern':30s}  {'n_test':>6s}  {'pred_fraud':>10s}  {'recall':>6s}"
+    print(h)
+    print("-" * len(h))
+    for pattern in sorted(df_test["fraud_pattern"].dropna().unique()):
+        mask = test_local["fraud_pattern"] == pattern
+        p = test_local[mask]
+        rec = recall_score(p[LABEL_COL], p["pred"]) if len(p) > 0 else 0.0
+        print(f"{pattern:30s}  {len(p):6d}  {int(p['pred'].sum()):10d}  {rec:6.3f}")
 
     print()
     print("=== Feature importance ===")
@@ -90,7 +103,7 @@ def main():
     X_test, y_test = test_df[FEATURE_COLS], test_df[LABEL_COL]
 
     model = train_model(X_train, y_train)
-    evaluate_model(model, X_test, y_test)
+    evaluate_model(model, X_test, y_test, test_df)
 
     MODEL_PATH.parent.mkdir(parents=True, exist_ok=True)
     joblib.dump(model, MODEL_PATH)
