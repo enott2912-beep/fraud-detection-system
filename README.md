@@ -13,15 +13,21 @@ Rule-based engine (Django 6 + DRF) vs RandomForest comparison on synthetic v5 da
 | mule_fraud | 22% | 74% | 27 |
 | balance_drain_fraud | 0% | 32% | 19 |
 
-ML catches 31 frauds that rules miss; rules catch 9 that ML misses; 24 missed by both.
+Disagreement: both caught 57, ML better 31, rules better 9, both missed 24 (sum=121 ✓).
 
-## Known limitation
+## Known limitations
 
-`balance_drain_fraud` is a blind spot for both systems. The feature `amount_to_balance_ratio` overlaps heavily with normal transactions. Resolving this needs additional features or a different model family — out of scope for this iteration.
+- **balance_drain_fraud**: blind spot for both systems — rules (0%) and ML (32% on sklearn 1.9.0). Recall varies 11–32% between sklearn 1.8.0 and 1.9.0 with identical code/data/`random_state=42`. Root cause: `amount_to_balance_ratio` overlaps with normal transactions (see `eda_feature_distributions.ipynb`).
+- **dormant_reactivation_fraud**: ML (58%) significantly behind rules (92%) — rules catch it accidentally via the `new_account` heuristic (<7 days) which overlaps with dormant reactivation profiles.
+
+Both require additional features or a different model family — out of scope for this iteration.
 
 ## Reproducibility
 
+Requires `scikit-learn==1.9.0` exactly — RandomForest results are not bit-reproducible across sklearn minor versions even with a fixed `random_state`.
+
 ```bash
+pip install -r requirements.txt
 python -c "from ml.synthetic.export_dataset import export_dataset; export_dataset('v5')"
 python ml/train_model.py
 # Notebooks in order:

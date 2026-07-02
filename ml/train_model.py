@@ -21,10 +21,11 @@ FEATURE_COLS = [
 ]
 LABEL_COL = "is_fraud"
 
-BEST_THRESHOLD = 0.59  # Known limitation of RF baseline: balance_drain_fraud recall ~32%
-                         # at this threshold. Root cause: amount_to_balance_ratio overlaps
-                         # heavily with normal population (see eda_feature_distributions.ipynb).
-                         # Not resolved — out of scope for this iteration.
+BEST_THRESHOLD = 0.59  # Known limitation: balance_drain_fraud recall ~32% at this threshold.
+                         # Root cause: amount_to_balance_ratio overlaps with normal population
+                         # (see eda_feature_distributions.ipynb). Not resolved — out of scope.
+                         # NOTE: RandomForest results vary between sklearn minor versions even
+                         # with fixed random_state. Pinned to sklearn==1.9.0 in requirements.txt.
 
 BEST_PARAMS = {
     "n_estimators": 200,
