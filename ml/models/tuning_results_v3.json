@@ -1,0 +1,12 @@
+{
+  "best_threshold": 0.64,
+  "best_f1": 0.708,
+  "best_params": {
+    "max_depth": null,
+    "min_samples_leaf": 1,
+    "n_estimators": 100
+  },
+  "best_val_precision": 0.8,
+  "best_val_recall": 0.6349,
+  "best_val_f1": 0.708
+}

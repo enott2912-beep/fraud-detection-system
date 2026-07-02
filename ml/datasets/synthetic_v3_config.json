@@ -1,0 +1,27 @@
+{
+  "version": "v3",
+  "generated_at": "2026-07-02T12:51:06.187522+00:00",
+  "seed": 42,
+  "n_accounts": 2000,
+  "n_transactions": 20000,
+  "fraud_ratio": 0.03,
+  "enabled_fraud_patterns": [
+    "new_account_fraud",
+    "velocity_fraud",
+    "mule_fraud",
+    "structuring_fraud",
+    "balance_drain_fraud",
+    "dormant_reactivation_fraud"
+  ],
+  "account_created_days_range": [
+    1,
+    730
+  ],
+  "transaction_created_days_range": [
+    1,
+    365
+  ],
+  "row_count": 20000,
+  "fraud_count": 600,
+  "fraud_ratio_actual": 0.03
+}
