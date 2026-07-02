@@ -21,10 +21,10 @@ FEATURE_COLS = [
 ]
 LABEL_COL = "is_fraud"
 
-BEST_THRESHOLD = 0.59  # Known limitation: balance_drain_fraud recall ~0% at this threshold.
-                         # Lowering to 0.30 would give bd_recall=0.46 but collapse precision
-                         # 0.83→0.51. Decision: accept as RF baseline limitation, expect
-                         # improvement from GBM/CatBoost.
+BEST_THRESHOLD = 0.59  # Known limitation of RF baseline: balance_drain_fraud recall ~32%
+                         # at this threshold. Root cause: amount_to_balance_ratio overlaps
+                         # heavily with normal population (see eda_feature_distributions.ipynb).
+                         # Not resolved — out of scope for this iteration.
 
 BEST_PARAMS = {
     "n_estimators": 200,
