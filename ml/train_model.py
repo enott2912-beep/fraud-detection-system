@@ -1,5 +1,6 @@
 """
-Train a first ML model (RandomForestClassifier) on the synthetic dataset
+Train an ML model (RandomForestClassifier) on the synthetic dataset.
+Hyperparameters and threshold are fixed from rf_tuning.ipynb tuning on val set.
 """
 from __future__ import annotations
 
@@ -10,8 +11,8 @@ import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import classification_report, roc_auc_score, confusion_matrix
 
-DATASET_PATH = Path(__file__).resolve().parent / "datasets" / "synthetic_v2.csv"
-MODEL_PATH = Path(__file__).resolve().parent / "models" / "fraud_model_v2.pkl"
+DATASET_PATH = Path(__file__).resolve().parent / "datasets" / "synthetic_v4.csv"
+MODEL_PATH = Path(__file__).resolve().parent / "models" / "fraud_model_v4.pkl"
 
 FEATURE_COLS = [
     "amount", "account_age_days", "tx_last_hour", "transaction_hour",
@@ -19,6 +20,14 @@ FEATURE_COLS = [
     "amount_to_balance_ratio", "days_since_last_tx",
 ]
 LABEL_COL = "is_fraud"
+
+BEST_THRESHOLD = 0.64
+
+BEST_PARAMS = {
+    "n_estimators": 200,
+    "max_depth": None,
+    "min_samples_leaf": 1,
+}
 
 
 def load_data():
@@ -36,20 +45,20 @@ def time_based_split(df, train_ratio=0.8):
 
 def train_model(X_train, y_train):
     model = RandomForestClassifier(
-        n_estimators=100,
         class_weight="balanced",
         random_state=42,
         n_jobs=-1,
+        **BEST_PARAMS,
     )
     model.fit(X_train, y_train)
     return model
 
 
 def evaluate_model(model, X_test, y_test):
-    y_pred = model.predict(X_test)
     y_proba = model.predict_proba(X_test)[:, 1]
+    y_pred = (y_proba >= BEST_THRESHOLD).astype(int)
 
-    print("=== Classification report (threshold 0.5) ===")
+    print(f"=== Classification report (threshold={BEST_THRESHOLD}) ===")
     print(classification_report(y_test, y_pred, target_names=["normal", "fraud"]))
 
     print("=== Confusion matrix ===")

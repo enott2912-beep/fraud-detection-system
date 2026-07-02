@@ -75,7 +75,19 @@ def assign_transaction_timestamps(transactions_df, accounts_df, rng, reference_d
 
         dormant_mask = normal_df["fraud_pattern"] == "dormant_reactivation_fraud"
         if dormant_mask.any():
-            day_offsets.loc[dormant_mask] = max_offsets.loc[dormant_mask]
+            day_offsets.loc[dormant_mask] = np.maximum(
+                day_offsets.loc[dormant_mask].to_numpy(),
+                np.full(dormant_mask.sum(), 60),
+            )
+
+        new_account_mask = normal_df["fraud_pattern"] == "new_account_fraud"
+        if new_account_mask.any():
+            clamped_max = np.minimum(
+                max_offsets.loc[new_account_mask].to_numpy() + 1, 8
+            )
+            day_offsets.loc[new_account_mask] = rng.integers(
+                0, clamped_max
+            )
 
         base_dates = sender_days + pd.to_timedelta(day_offsets, unit="D")
 
@@ -290,11 +302,6 @@ def build_dataset():
         transactions_df["days_since_last_tx"].fillna(
             transactions_df["account_age_days"]
         )
-    )
-
-    dormant_mask = transactions_df["fraud_pattern"] == "dormant_reactivation_fraud"
-    transactions_df.loc[dormant_mask, "days_since_last_tx"] = (
-        transactions_df.loc[dormant_mask, "account_age_days"]
     )
 
     return accounts_df, transactions_df

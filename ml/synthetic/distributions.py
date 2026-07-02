@@ -5,7 +5,7 @@ import numpy as np
 
 
 def generate_balance(n, rng):
-    balances = rng.lognormal(mean=8.2, sigma=1.0, size=n)
+    balances = rng.lognormal(mean=10.2, sigma=1.0, size=n)
     return np.round(balances, 2)
 
 

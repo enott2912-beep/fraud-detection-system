@@ -45,14 +45,8 @@ def generate_normal_transactions(n, accounts_df, rng):
 
 def new_account_fraud(n, accounts_df, rng):
     account_ids = accounts_df["account_id"].to_numpy()
-    ages = accounts_df["created_offset_days"].to_numpy().astype(float)
 
-   
-    K = 30.0
-    raw_weights = np.exp(-ages / K)
-    weights = raw_weights / raw_weights.sum()
-
-    senders = rng.choice(account_ids, size=n, p=weights)
+    senders = rng.choice(account_ids, size=n)
 
     receivers = rng.choice(account_ids, size=n)
     same_mask = senders == receivers
@@ -248,8 +242,10 @@ def generate_all_transactions(n_total, fraud_ratio, accounts_df, rng,
 
     df = df.sample(frac=1, random_state=SEED)
 
+    patterns_with_night_hours = ["new_account_fraud", "velocity_fraud"]
+    night_mask = df["fraud_pattern"].isin(patterns_with_night_hours)
     df["transaction_hour"] = generate_transaction_hour(
-        len(df), rng, fraud_mask=df["is_fraud"]
+        len(df), rng, fraud_mask=night_mask
     )
 
     return df.reset_index(drop=True)

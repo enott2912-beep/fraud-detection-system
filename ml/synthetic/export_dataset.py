@@ -17,7 +17,7 @@ from .build_dataset import build_dataset
 DATASETS_DIR = Path(__file__).resolve().parent.parent / "datasets"
 
 
-def export_dataset(version: str = "v1"):
+def export_dataset(version: str = "v4"):
     DATASETS_DIR.mkdir(parents=True, exist_ok=True)
 
     accounts_df, transactions_df = build_dataset()
