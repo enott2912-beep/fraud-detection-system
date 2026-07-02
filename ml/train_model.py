@@ -21,7 +21,10 @@ FEATURE_COLS = [
 ]
 LABEL_COL = "is_fraud"
 
-BEST_THRESHOLD = 0.59
+BEST_THRESHOLD = 0.59  # Known limitation: balance_drain_fraud recall ~0% at this threshold.
+                         # Lowering to 0.30 would give bd_recall=0.46 but collapse precision
+                         # 0.83→0.51. Decision: accept as RF baseline limitation, expect
+                         # improvement from GBM/CatBoost.
 
 BEST_PARAMS = {
     "n_estimators": 200,
@@ -71,10 +74,10 @@ def evaluate_model(model, X_test, y_test, df_test):
     print("ROC-AUC:", round(roc_auc_score(y_test, y_proba), 4))
 
     print()
-    print("=== Per-pattern recall ===")
+    print("=== Per-pattern recall (test) ===")
     test_local = df_test.copy()
     test_local["pred"] = y_pred
-    h = f"{'Pattern':30s}  {'n_test':>6s}  {'pred_fraud':>10s}  {'recall':>6s}"
+    h = f"{'Pattern':30s}  {'n (test)':>8s}  {'pred_fraud':>10s}  {'recall (test)':>12s}"
     print(h)
     print("-" * len(h))
     for pattern in sorted(df_test["fraud_pattern"].dropna().unique()):
