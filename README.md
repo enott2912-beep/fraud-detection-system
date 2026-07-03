@@ -1,11 +1,11 @@
 # Fraud Detection System
 
-[![Python 3.12](https://img.shields.io/badge/python-3.12-blue)](https://python.org)
-[![Django 6.0](https://img.shields.io/badge/django-6.0.6-092E20)](https://djangoproject.com)
-[![DRF 3.17](https://img.shields.io/badge/djangorestframework-3.17.1-A30000)](https://django-rest-framework.org)
-[![PostgreSQL](https://img.shields.io/badge/postgresql-4169E1)](https://postgresql.org)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-![Tests: 22 passing](https://img.shields.io/badge/tests-22%20passing-brightgreen)
+![Python](https://img.shields.io/badge/Python-3.12-blue?logo=python)
+![Django](https://img.shields.io/badge/Django-6.0-green?logo=django)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-blue?logo=postgresql)
+![License](https://img.shields.io/badge/License-MIT-yellow)
+![Tests](https://img.shields.io/badge/Tests-22%20passing-success)
+![Last Commit](https://img.shields.io/github/last-commit/enott2912-beep/fraud-detection-system)
 
 Rule-based engine (Django + DRF + PostgreSQL) vs RandomForest vs **hybrid (rules + ML escalation)** comparison on synthetic v5 data — 2000 accounts, 20000 transactions, 3% fraud rate, 6 fraud patterns. Demonstrates the trade-off between explainable rules and ML, with measurable gaps for each approach.
 
