@@ -3,10 +3,11 @@
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue)](https://python.org)
 [![Django 6.0](https://img.shields.io/badge/django-6.0.6-092E20)](https://djangoproject.com)
 [![DRF 3.17](https://img.shields.io/badge/djangorestframework-3.17.1-A30000)](https://django-rest-framework.org)
+[![PostgreSQL](https://img.shields.io/badge/postgresql-4169E1)](https://postgresql.org)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 ![Tests: 22 passing](https://img.shields.io/badge/tests-22%20passing-brightgreen)
 
-Rule-based engine (Django + DRF) vs RandomForest vs **hybrid (rules + ML escalation)** comparison on synthetic v5 data — 2000 accounts, 20000 transactions, 3% fraud rate, 6 fraud patterns. Demonstrates the trade-off between explainable rules and ML, with measurable gaps for each approach.
+Rule-based engine (Django + DRF + PostgreSQL) vs RandomForest vs **hybrid (rules + ML escalation)** comparison on synthetic v5 data — 2000 accounts, 20000 transactions, 3% fraud rate, 6 fraud patterns. Demonstrates the trade-off between explainable rules and ML, with measurable gaps for each approach.
 
 ## Architecture
 
@@ -76,7 +77,7 @@ jupyter nbconvert --execute --to notebook --inplace ml/notebooks/rules_vs_model_
 
 ```
 fraud-detection-system/
-├── config/              # Django settings, URLs, ASGI/WSGI
+├── config/              # Django settings (PostgreSQL), URLs, ASGI/WSGI
 ├── accounts/            # Account model, read-only API, migrations
 ├── transactions/        # Transaction model, POST/create API, signals
 ├── fraud_checks/        # Rule engine (services.py), FraudCheck model,
