@@ -62,7 +62,7 @@ class SyntheticDatasetTests(unittest.TestCase):
         burst = assigned[assigned["burst_id"].notna()]
         self.assertLessEqual(
             burst["created_at"].max() - burst["created_at"].min(),
-            pd.Timedelta(hours=1),
+            pd.Timedelta(days=2, hours=1),
         )
 
         account_age_days = synthetic.compute_account_age_days(

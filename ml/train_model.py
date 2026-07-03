@@ -11,6 +11,7 @@ import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import classification_report, roc_auc_score, confusion_matrix, recall_score
 
+# Local paths for standalone script (ml/constants.py mirrors these for Django)
 DATASET_PATH = Path(__file__).resolve().parent / "datasets" / "synthetic_v5.csv"
 MODEL_PATH = Path(__file__).resolve().parent / "models" / "fraud_model_v5.pkl"
 

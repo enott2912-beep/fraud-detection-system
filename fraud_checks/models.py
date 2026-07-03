@@ -26,6 +26,11 @@ class FraudCheck(models.Model):
 
     reasons = models.JSONField()
 
+    ml_proba = models.FloatField(
+        null=True, blank=True,
+        help_text="ML probability from apply_ml_escalation (None = ML not called)"
+    )
+
     checked_at = models.DateTimeField(
         auto_now_add=True
     )

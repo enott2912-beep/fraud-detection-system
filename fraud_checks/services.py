@@ -81,6 +81,23 @@ def calculate_risk(transaction):
     }
 
 
+def apply_ml_escalation(transaction, rule_result):
+    if rule_result["decision"] != "APPROVED":
+        return {**rule_result, "ml_proba": None}
+
+    from ml.inference import predict_ml_proba
+    from ml.constants import ESCALATION_THRESHOLD
+
+    ml_proba = predict_ml_proba(transaction)
+    result = {**rule_result, "ml_proba": ml_proba}
+
+    if ml_proba >= ESCALATION_THRESHOLD:
+        result["decision"] = "REVIEW"
+        result["reasons"] = rule_result["reasons"] + ["ml_escalation"]
+
+    return result
+
+
 def run_fraud_check(transaction):
     with db_transaction.atomic():
         # Retrieve sender and receiver accounts with a row lock to prevent race conditions
@@ -94,12 +111,16 @@ def run_fraud_check(transaction):
         # Calculate risk score and decision
         result = calculate_risk(transaction)
 
+        # Apply ML escalation (only raises APPROVED -> REVIEW, never lowers)
+        result = apply_ml_escalation(transaction, result)
+
         # Create FraudCheck record
         fraud_check = FraudCheck.objects.create(
             transaction=transaction,
             risk_score=result["risk_score"],
             decision=result["decision"],
             reasons=result["reasons"],
+            ml_proba=result.get("ml_proba"),
         )
 
         status_map = {
